@@ -1,0 +1,70 @@
+Для Ubuntu 20.04 будем использовать ROS 2 Foxy Fitzroy (поддерживается до 2023 года). Вот адаптированная инструкция:
+
+1. Установка ROS 2 Foxy
+bash
+# Добавляем репозиторий ROS 2 Foxy
+sudo apt update && sudo apt install curl gnupg2
+curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | sudo apt-key add -
+sudo sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2.list'
+sudo apt update
+
+# Устанавливаем ROS 2 Foxy
+sudo apt install ros-foxy-desktop
+
+# Инициализируем окружение
+source /opt/ros/foxy/setup.bash
+echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
+2. Создание рабочего пространства
+bash
+mkdir -p ~/rov_ws/src
+cd ~/rov_ws
+colcon build
+source install/setup.bash
+3. Установка TurtleBot3 для ROS 2 Foxy
+bash
+# Устанавливаем зависимости
+sudo apt install ros-foxy-gazebo-ros-pkgs ros-foxy-cartographer ros-foxy-navigation2
+
+# Клонируем пакеты TurtleBot3
+cd ~/rov_ws/src
+git clone -b foxy https://github.com/ROBOTIS-GIT/turtlebot3.git
+git clone -b foxy https://github.com/ROBOTIS-GIT/turtlebot3_simulations.git
+
+# Собираем пакеты
+cd ~/rov_ws
+colcon build --symlink-install
+source install/setup.bash
+4. Настройка модели TurtleBot3
+bash
+# Добавляем в .bashrc (чтобы не вводить каждый раз)
+echo "export TURTLEBOT3_MODEL=waffle" >> ~/.bashrc
+source ~/.bashrc
+5. Запуск симуляции в Gazebo
+bash
+ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+6. Визуализация в RViz2
+bash
+# В новом терминале
+source ~/rov_ws/install/setup.bash
+ros2 launch turtlebot3_cartographer cartographer.launch.py
+7. Управление с клавиатуры
+bash
+# В новом терминале
+source ~/rov_ws/install/setup.bash
+ros2 run turtlebot3_teleop teleop_keyboard
+Если Gazebo не запускается:
+Установите Gazebo 11 (совместим с ROS Foxy):
+
+bash
+sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" > /etc/apt/sources.list.d/gazebo-stable.list'
+wget https://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
+sudo apt update
+sudo apt install gazebo11 libgazebo11-dev
+Проверьте версию Gazebo:
+
+bash
+gazebo --version  # Должно быть 11.x.x
+Важно:
+Если вы хотите использовать Husky вместо TurtleBot3, напишите — дам инструкцию для него.
+
+Для Ubuntu 20.04 не используйте ROS 2 Humble (она требует Ubuntu 22.04).
