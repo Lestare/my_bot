@@ -38,5 +38,3 @@ install(
 )
 
 ament_package()
-
-hi
