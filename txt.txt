@@ -68,3 +68,6 @@ gazebo --version  # Должно быть 11.x.x
 Если вы хотите использовать Husky вместо TurtleBot3, напишите — дам инструкцию для него.
 
 Для Ubuntu 20.04 не используйте ROS 2 Humble (она требует Ubuntu 22.04).
+
+
+https://docs.ros.org/en/foxy/Installation/Alternatives/Ubuntu-Development-Setup.html#set-locale
