@@ -71,3 +71,5 @@ gazebo --version  # Должно быть 11.x.x
 
 
 https://docs.ros.org/en/foxy/Installation/Alternatives/Ubuntu-Development-Setup.html#set-locale
+
+https://articulatedrobotics.xyz/tutorials/ready-for-ros/installing-ros
