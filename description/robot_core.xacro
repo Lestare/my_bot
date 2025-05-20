@@ -29,7 +29,7 @@
         <origin xyz="0.1 0 0"/>
     </joint>
 
-    <link name="chassin">
+    <link name="chassis">
         <visual>
             <origin xyz= "0.15 0 0.075"/>          
             <geometry>
