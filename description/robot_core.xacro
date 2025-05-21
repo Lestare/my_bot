@@ -26,7 +26,7 @@
     <joint name="chassis_joint" type="fixed">
         <parent link="base_link"/>
         <child link="chassis"/>
-        <origin xyz="0 0 0"/>
+        <origin xyz="0 0 -1"/>
     </joint>
 
     <link name="chassis">
@@ -38,7 +38,6 @@
             <material name="white"/>
         </visual>
     </link>
-# gojkhp'ijdsfhpoij
 
 
 </robot>
