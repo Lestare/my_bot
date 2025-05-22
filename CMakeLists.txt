@@ -17,24 +17,11 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-
-
-
 # uncomment the following section in order to fill in
-
-
 # further dependencies manually.
-
-
-# find_package(<dependency> REQUIRED) eirhjhurg
-
-
-
-
+# find_package(<dependency> REQUIRED)
 
 if(BUILD_TESTING)
-
-
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
   # uncomment the line when a copyright and license is not present in all source files
