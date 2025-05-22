@@ -31,12 +31,18 @@
 
     <link name="chassis">
         <visual>
-            <origin xyz="0.15 0 0.075"/>          
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
             <geometry>
                 <box size="0.3 0.3 0.15"/>
             </geometry>
             <material name="white"/>
         </visual>
+        <collision>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+            <geometry>
+                <box size="0.3 0.3 0.15"/>
+            </geometry>
+        </collision>
     </link>
     <!-- LEFT WHEEL -->
 
@@ -91,19 +97,5 @@
         </visual>
     </link>
     
-    <link name="chassis">
-        <visual>
-            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
-            <geometry>
-                <box size="0.3 0.3 0.15"/>
-            </geometry>
-            <material name="white"/>
-        </visual>
-        <collision>
-            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
-            <geometry>
-                <box size="0.3 0.3 0.15"/>
-            </geometry>
-        </collision>
-    </link>
+
 </robot>
