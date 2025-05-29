@@ -42,7 +42,7 @@
                 <box size="1.2 0.6 0.26"/>
             </geometry>
         </collision>
-        <xacro:inertial_box mass="0.5" x="0.3" y="0.3" z="0.15">
+        <xacro:inertial_box mass="0.5" x="1.2" y="0.6" z="0.26">
             <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
         </xacro:inertial_box>
     </link>
@@ -79,6 +79,10 @@
 
     <gazebo reference="left_wheel">
         <material>Gazebo/Blue</material>
+        <mu1 value="10.0"/>
+        <mu2 value="10.0"/>
+        <kp value="10000000.0" />
+        <kd value="1.0" />
     </gazebo>
  
     <!-- RIGHT WHEEL -->
@@ -109,6 +113,10 @@
 
     <gazebo reference="right_wheel">
         <material>Gazebo/Blue</material>
+        <mu1 value="10.0"/>
+        <mu2 value="10.0"/>
+        <kp value="10000000.0" />
+        <kd value="1.0" />
     </gazebo>
 
     <!-- BACK LEFT WHEEL -->
@@ -139,6 +147,10 @@
 
     <gazebo reference="back_left_wheel">
         <material>Gazebo/Blue</material>
+        <mu1 value="10.0"/>
+        <mu2 value="10.0"/>
+        <kp value="10000000.0" />
+        <kd value="1.0" />
     </gazebo>
 
     <!-- BACK RIGHT WHEEL -->
@@ -169,31 +181,10 @@
 
     <gazebo reference="back_right_wheel">
         <material>Gazebo/Blue</material>
-    </gazebo>
-
-    <!-- УПРАВЛЕНИЕ 4-КОЛЕСНЫМ РОВЕРОМ -->
-   
-<gazebo>
-        <plugin name="skid_steer_drive" filename="libgazebo_ros_skid_steer_drive.so">
-            <commandTopic>cmd_vel</commandTopic>
-            <odometryTopic>odom</odometryTopic>
-            <odometryFrame>odom</odometryFrame>
-            <robotBaseFrame>base_link</robotBaseFrame>
-            
-            <!-- Левый борт: переднее и заднее колесо -->
-            <leftJoint>left_wheel_joint back_left_wheel_joint</leftJoint>
-            
-            <!-- Правый борт: переднее и заднее колесо -->
-            <rightJoint>right_wheel_joint back_right_wheel_joint</rightJoint>
-            
-            <wheelSeparation>0.35</wheelSeparation>
-            <wheelDiameter>0.10</wheelDiameter>
-            <torque>20</torque>
-            <updateRate>50.0</updateRate>
-            <publishWheelTF>true</publishWheelTF>
-            <publishWheelJointState>true</publishWheelJointState>
-            <publishTf>true</publishTf>
-        </plugin>
+        <mu1 value="10.0"/>
+        <mu2 value="10.0"/>
+        <kp value="10000000.0" />
+        <kd value="1.0" />
     </gazebo>
 
 </robot>
