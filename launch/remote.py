@@ -8,21 +8,21 @@ class Remote(Node):
     def __init__(self):
         super().__init__('remote')
         
-        # Кнопки управления
+        # Публикатор команд для ровера
         self.cmd_pub = self.create_publisher(Twist, 'remote_cmd', 10)
         
-        # Экран с положением ровера
+        # Подписка на одометрию от ровера
         self.create_subscription(Odometry, 'remote_odom', self.odom_callback, 10)
         
-        print("Пульт готов! Управляю ровером...")
-        self.timer = self.create_timer(1.0, self.send_command)  # Шлем команды каждую секунду
-
-    def send_command(self):
-        cmd = Twist()
-        cmd.linear.x = 0.5   # Всегда едем вперед
-        cmd.angular.z = 0.3  # Слегка поворачиваем
-        self.cmd_pub.publish(cmd)
-        print("Отправил команду: ВПЕРЕД И ПОВОРОТ")
+        # Подписка на команды от teleop
+        self.create_subscription(Twist, 'cmd_vel', self.teleop_callback, 10)
+        
+        print("Пульт готов! Запусти teleop в другом терминале")
+        
+    def teleop_callback(self, msg):
+        """Получаем команды от teleop и пересылаем на ровер"""
+        self.cmd_pub.publish(msg)
+        print(f"Отправляю команду: X={msg.linear.x}, Z={msg.angular.z}")
 
     def odom_callback(self, msg):
         pos = msg.pose.pose.position
