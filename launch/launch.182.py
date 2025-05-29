@@ -1,42 +1,55 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rclpy
+from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 
-# Функция обратного вызова для получения информации о перемещении
-def odometry_callback(data):
-    # Извлечение необходимой информации о перемещении
-    position = data.pose.pose.position
-    orientation = data.pose.pose.orientation
-    rclpy.loginfo("Current Position: x=%.2f, y=%.2f, z=%.2f", position.x, position.y, position.z)
-    rclpy.loginfo("Current Orientation: x=%.2f, y=%.2f, z=%.2f, w=%.2f", orientation.x, orientation.y, orientation.z, orientation.w)
+class RoverController(Node):
+    def __init__(self):
+        super().__init__('rover_controller')
+        
+        # Подписка на команды движения с сервера
+        self.cmd_sub = self.create_subscription(
+            Twist,
+            'remote_cmd_vel',
+            self.cmd_callback,
+            10
+        )
+        
+        # Публикация одометрии на сервер
+        self.odom_pub = self.create_publisher(Odometry, 'remote_odom', 10)
+        
+        # Подписка на локальную одометрию
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            'odom',
+            self.odom_callback,
+            10
+        )
+        
+        self.get_logger().info("Rover Controller: Ready to receive commands")
 
-    # Здесь вы можете добавить код для отправки данных на серверный компьютер
-    # Например, используя сокеты или HTTP-запросы.
+    def cmd_callback(self, msg):
+        # Перенаправляем команды в локальный топик управления
+        cmd_pub = self.create_publisher(Twist, 'cmd_vel', 10)
+        cmd_pub.publish(msg)
+        self.get_logger().info(f"Command received: Linear={msg.linear.x}, Angular={msg.angular.z}")
 
-def movement_publisher():
-    # Инициализация узла ROS
-    rclpy.init_node('movement_publisher', anonymous=True)
+    def odom_callback(self, msg):
+        # Отправляем одометрию на сервер
+        self.odom_pub.publish(msg)
 
-    # Подписка на тему одометрии
-    rclpy.Subscriber("odom", Odometry, odometry_callback)
-
-    # Публикация команды движения
-    cmd_pub = rclpy.Publisher("cmd_vel", Twist, queue_size=10)
-
-    rate = rclpy.Rate(10)  # 10 Гц
-    while not rclpy.is_shutdown():
-        cmd_msg = Twist()
-        # Пример команды движения
-        cmd_msg.linear.x = 0.5  # Скорость вперед
-        cmd_msg.angular.z = 0.0  # Никакого вращения
-
-        cmd_pub.publish(cmd_msg)
-        rate.sleep()
+def main():
+    rclpy.init()
+    node = RoverController()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
-    try:
-        movement_publisher()
-    except rclpy.ROSInterruptException:
-        pass
+    main()
