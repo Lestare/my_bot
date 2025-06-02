@@ -37,4 +37,9 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+catkin_install_python(PROGRAMS scripts/continuous_teleop.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 ament_package()
+

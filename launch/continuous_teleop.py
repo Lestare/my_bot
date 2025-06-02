@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+import rospy
+from geometry_msgs.msg import Twist
+import sys, select, termios, tty
+import time
+
+class TankTeleop:
+    def __init__(self):
+        self.pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
+        self.linear_speed = rospy.get_param("~linear", 0.5)  # м/с
+        self.angular_speed = rospy.get_param("~angular", 1.0)  # рад/с
+        self.settings = termios.tcgetattr(sys.stdin)
+        
+        rospy.loginfo(f"Tank-style teleop initialized")
+        rospy.loginfo(f"Linear speed: {self.linear_speed} m/s")
+        rospy.loginfo(f"Angular speed: {self.angular_speed} rad/s")
+        rospy.loginfo("Controls:")
+        rospy.loginfo("  W: Move forward")
+        rospy.loginfo("  S: Move backward")
+        rospy.loginfo("  A: Rotate counter-clockwise (tank turn)")
+        rospy.loginfo("  D: Rotate clockwise (tank turn)")
+        rospy.loginfo("  Q: Increase linear speed")
+        rospy.loginfo("  Z: Decrease linear speed")
+        rospy.loginfo("  E: Increase angular speed")
+        rospy.loginfo("  C: Decrease angular speed")
+        rospy.loginfo("  SPACE: Emergency stop")
+        rospy.loginfo("  CTRL+C: Exit")
+
+    def getKey(self):
+        tty.setraw(sys.stdin.fileno())
+        select.select([sys.stdin], [], [], 0.1)
+        key = sys.stdin.read(1) if sys.stdin in select.select([sys.stdin], [], [], 0)[0] else ''
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
+        return key
+
+    def run(self):
+        try:
+            while not rospy.is_shutdown():
+                key = self.getKey()
+                twist = Twist()
+                
+                # Движение вперед/назад
+                if key == 'w':
+                    twist.linear.x = self.linear_speed
+                elif key == 's':
+                    twist.linear.x = -self.linear_speed
+                
+                # Танковые повороты на месте
+                elif key == 'a':
+                    twist.angular.z = self.angular_speed  # Поворот против часовой
+                elif key == 'd':
+                    twist.angular.z = -self.angular_speed  # Поворот по часовой
+                
+                # Настройка скоростей
+                elif key == 'q':
+                    self.linear_speed = min(2.0, self.linear_speed + 0.1)
+                    rospy.loginfo(f"Linear speed: {self.linear_speed:.1f} m/s")
+                elif key == 'z':
+                    self.linear_speed = max(0.1, self.linear_speed - 0.1)
+                    rospy.loginfo(f"Linear speed: {self.linear_speed:.1f} m/s")
+                elif key == 'e':
+                    self.angular_speed = min(3.0, self.angular_speed + 0.2)
+                    rospy.loginfo(f"Angular speed: {self.angular_speed:.1f} rad/s")
+                elif key == 'c':
+                    self.angular_speed = max(0.2, self.angular_speed - 0.2)
+                    rospy.loginfo(f"Angular speed: {self.angular_speed:.1f} rad/s")
+                
+                # Экстренная остановка
+                elif key == ' ':
+                    twist.linear.x = 0
+                    twist.angular.z = 0
+                elif key == '\x03':  # CTRL+C
+                    break
+                
+                self.pub.publish(twist)
+                
+        finally:
+            # Остановка при выходе
+            twist = Twist()
+            self.pub.publish(twist)
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
+
+if __name__ == "__main__":
+    rospy.init_node("tank_teleop")
+    teleop = TankTeleop()
+    teleop.run()
