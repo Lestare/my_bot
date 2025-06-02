@@ -178,7 +178,10 @@ class Rover(Node):
         t_base.transform.translation.x = self.x
         t_base.transform.translation.y = self.y
         t_base.transform.translation.z = 0.0
-        
+        cy = math.cos(self.theta * 0.5)
+        sy = math.sin(self.theta * 0.5)
+        t_base.transform.rotation.z = sy
+        t_base.transform.rotation.w = cy
         
         # Публикуем трансформацию
         self.tf_broadcaster.sendTransform(t_base)
@@ -191,11 +194,8 @@ class Rover(Node):
         odom.pose.pose.position.x = self.x
         odom.pose.pose.position.y = self.y
         odom.pose.pose.position.z = 0.0
-        odom.pose.pose.orientation.x = q[0]
-        odom.pose.pose.orientation.y = q[1]
-        odom.pose.pose.orientation.z = q[2]
-        odom.pose.pose.orientation.w = q[3]
-        self.odom_pub.publish(odom)
+        
+        
 
 def main():
     rclpy.init()
