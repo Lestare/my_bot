@@ -20,13 +20,7 @@ class Rover(Node):
         
         # Публикация Odometry
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
-        
-        # Публикация URDF с правильным QoS
-        qos_profile = QoSProfile(
-            depth=1,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-            reliability=ReliabilityPolicy.RELIABLE
-        )
+
         self.urdf_pub = self.create_publisher(String, '/robot_description', qos_profile)
         
         # Имитация положения
@@ -38,69 +32,9 @@ class Rover(Node):
         self.create_timer(0.05, self.publish_transforms)  # 20 Гц
         self.create_timer(1.0, self.publish_urdf)  # Публикуем URDF раз в секунду
         
-        # Публикация URDF при старте
-        self.publish_urdf()
-        
+
         self.get_logger().info("Ровер готов к работе!")
 
-    def publish_urdf(self):
-        """Публикация правильного URDF с колесами"""
-        urdf = """
-        <robot name="simple_rover">
-            <link name="base_link">
-                <visual>
-                    <geometry>
-                        <box size="0.4 0.2 0.1"/>
-                    </geometry>
-                    <material name="blue">
-                        <color rgba="0 0 1 1"/>
-                    </material>
-                </visual>
-            </link>
-            
-            <!-- Добавляем колеса -->
-            <link name="wheel_left">
-                <visual>
-                    <geometry>
-                        <cylinder length="0.05" radius="0.08"/>
-                    </geometry>
-                    <material name="black">
-                        <color rgba="0.1 0.1 0.1 1"/>
-                    </material>
-                </visual>
-            </link>
-            
-            <link name="wheel_right">
-                <visual>
-                    <geometry>
-                        <cylinder length="0.05" radius="0.08"/>
-                    </geometry>
-                    <material name="black">
-                        <color rgba="0.1 0.1 0.1 1"/>
-                    </material>
-                </visual>
-            </link>
-            
-            <!-- Соединяем колеса с основой -->
-            <joint name="wheel_left_joint" type="continuous">
-                <parent link="base_link"/>
-                <child link="wheel_left"/>
-                <origin xyz="0.2 0.15 -0.1" rpy="1.57 0 0"/>
-                <axis xyz="0 1 0"/>
-            </joint>
-            
-            <joint name="wheel_right_joint" type="continuous">
-                <parent link="base_link"/>
-                <child link="wheel_right"/>
-                <origin xyz="0.2 -0.15 -0.1" rpy="1.57 0 0"/>
-                <axis xyz="0 1 0"/>
-            </joint>
-        </robot>
-        """
-        msg = String()
-        msg.data = urdf
-        self.urdf_pub.publish(msg)
-        self.get_logger().info("URDF опубликован")
 
     def cmd_callback(self, msg):
         # Обновляем положение на основе команд
