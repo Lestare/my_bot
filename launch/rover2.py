@@ -2,10 +2,10 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, TransformStamped
-from nav_msgs.msg import Odometry
 import math
 from tf2_ros import TransformBroadcaster
-from std_msgs.msg import String  # Для публикации URDF
+from std_msgs.msg import String
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy  # Импорт QoS
 
 class RoverTF(Node):
     def __init__(self):
@@ -17,8 +17,16 @@ class RoverTF(Node):
         # Публикация TF
         self.tf_broadcaster = TransformBroadcaster(self)
         
-        # Публикация URDF (важно для RViz2)
-        self.urdf_pub = self.create_publisher(String, '/robot_description', 10)
+        # Настройка QoS для /robot_description
+        # Важно: TRANSIENT_LOCAL для новых подписчиков
+        qos_profile = QoSProfile(
+            depth=10,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE
+        )
+        
+        # Публикация URDF с правильным QoS
+        self.urdf_pub = self.create_publisher(String, '/robot_description', qos_profile)
         
         # Имитация положения
         self.x = 0.0
@@ -29,7 +37,7 @@ class RoverTF(Node):
         self.create_timer(0.1, self.publish_tf)
         self.create_timer(1.0, self.publish_urdf)  # Публикуем URDF раз в секунду
         
-        self.get_logger().info("Ровер TF готов!")
+        self.get_logger().info("Ровер TF готов с правильным QoS!")
 
     def publish_urdf(self):
         """Публикация простого URDF для визуализации"""
@@ -50,6 +58,7 @@ class RoverTF(Node):
         msg = String()
         msg.data = urdf
         self.urdf_pub.publish(msg)
+        self.get_logger().info("URDF опубликован", throttle_duration_sec=5)
 
     def cmd_callback(self, msg):
         # Обновляем положение на основе команд
