@@ -1,30 +1,30 @@
 #!/usr/bin/env python
-import rospy
+import rclpy
 from geometry_msgs.msg import Twist
 import sys, select, termios, tty
 import time
 
 class TankTeleop:
     def __init__(self):
-        self.pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
-        self.linear_speed = rospy.get_param("~linear", 0.5)  # м/с
-        self.angular_speed = rospy.get_param("~angular", 1.0)  # рад/с
+        self.pub = rclpy.Publisher('cmd_vel', Twist, queue_size=1)
+        self.linear_speed = rclpy.get_param("~linear", 0.5)  # м/с
+        self.angular_speed = rclpy.get_param("~angular", 1.0)  # рад/с
         self.settings = termios.tcgetattr(sys.stdin)
         
-        rospy.loginfo(f"Tank-style teleop initialized")
-        rospy.loginfo(f"Linear speed: {self.linear_speed} m/s")
-        rospy.loginfo(f"Angular speed: {self.angular_speed} rad/s")
-        rospy.loginfo("Controls:")
-        rospy.loginfo("  W: Move forward")
-        rospy.loginfo("  S: Move backward")
-        rospy.loginfo("  A: Rotate counter-clockwise (tank turn)")
-        rospy.loginfo("  D: Rotate clockwise (tank turn)")
-        rospy.loginfo("  Q: Increase linear speed")
-        rospy.loginfo("  Z: Decrease linear speed")
-        rospy.loginfo("  E: Increase angular speed")
-        rospy.loginfo("  C: Decrease angular speed")
-        rospy.loginfo("  SPACE: Emergency stop")
-        rospy.loginfo("  CTRL+C: Exit")
+        rclpy.loginfo(f"Tank-style teleop initialized")
+        rclpy.loginfo(f"Linear speed: {self.linear_speed} m/s")
+        rclpy.loginfo(f"Angular speed: {self.angular_speed} rad/s")
+        rclpy.loginfo("Controls:")
+        rclpy.loginfo("  W: Move forward")
+        rclpy.loginfo("  S: Move backward")
+        rclpy.loginfo("  A: Rotate counter-clockwise (tank turn)")
+        rclpy.loginfo("  D: Rotate clockwise (tank turn)")
+        rclpy.loginfo("  Q: Increase linear speed")
+        rclpy.loginfo("  Z: Decrease linear speed")
+        rclpy.loginfo("  E: Increase angular speed")
+        rclpy.loginfo("  C: Decrease angular speed")
+        rclpy.loginfo("  SPACE: Emergency stop")
+        rclpy.loginfo("  CTRL+C: Exit")
 
     def getKey(self):
         tty.setraw(sys.stdin.fileno())
@@ -35,7 +35,7 @@ class TankTeleop:
 
     def run(self):
         try:
-            while not rospy.is_shutdown():
+            while not rclpy.is_shutdown():
                 key = self.getKey()
                 twist = Twist()
                 
@@ -54,16 +54,16 @@ class TankTeleop:
                 # Настройка скоростей
                 elif key == 'q':
                     self.linear_speed = min(2.0, self.linear_speed + 0.1)
-                    rospy.loginfo(f"Linear speed: {self.linear_speed:.1f} m/s")
+                    rclpy.loginfo(f"Linear speed: {self.linear_speed:.1f} m/s")
                 elif key == 'z':
                     self.linear_speed = max(0.1, self.linear_speed - 0.1)
-                    rospy.loginfo(f"Linear speed: {self.linear_speed:.1f} m/s")
+                    rclpy.loginfo(f"Linear speed: {self.linear_speed:.1f} m/s")
                 elif key == 'e':
                     self.angular_speed = min(3.0, self.angular_speed + 0.2)
-                    rospy.loginfo(f"Angular speed: {self.angular_speed:.1f} rad/s")
+                    rclpy.loginfo(f"Angular speed: {self.angular_speed:.1f} rad/s")
                 elif key == 'c':
                     self.angular_speed = max(0.2, self.angular_speed - 0.2)
-                    rospy.loginfo(f"Angular speed: {self.angular_speed:.1f} rad/s")
+                    rclpy.loginfo(f"Angular speed: {self.angular_speed:.1f} rad/s")
                 
                 # Экстренная остановка
                 elif key == ' ':
@@ -81,6 +81,6 @@ class TankTeleop:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
 
 if __name__ == "__main__":
-    rospy.init_node("tank_teleop")
+    rclpy.init_node("tank_teleop")
     teleop = TankTeleop()
     teleop.run()
