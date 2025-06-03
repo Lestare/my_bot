@@ -1,20 +1,19 @@
-# Замените существующий launch_sim.launch.py
 import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
+from launch.substitutions import Command
 
 def generate_launch_description():
     package_name = 'my_bot'
     
-    # URDF processing
-    urdf_file = os.path.join(
-        get_package_share_directory(package_name),
-        'description',
-        'robot.urdf.xacro'
-    )
+    # Получаем путь к URDF
+    pkg_share = get_package_share_directory(package_name)
+    xacro_path = os.path.join(pkg_share, 'description', 'robot.urdf.xacro')
     
-    # Nodes
+    # Преобразуем XACRO в URDF
+    robot_description = Command(['xacro ', xacro_path])
+    
     return LaunchDescription([
         # Robot State Publisher
         Node(
@@ -23,7 +22,7 @@ def generate_launch_description():
             name='robot_state_publisher',
             output='screen',
             parameters=[{
-                'robot_description': open(urdf_file, 'r').read(),
+                'robot_description': robot_description,
                 'use_sim_time': True
             }]
         ),
@@ -31,25 +30,39 @@ def generate_launch_description():
         # Gazebo
         Node(
             package='gazebo_ros',
+            executable='gazebo',
+            name='gazebo',
+            output='screen',
+            arguments=['-s', 'libgazebo_ros_init.so', '-s', 'libgazebo_ros_factory.so']
+        ),
+        
+        # Spawn Entity
+        Node(
+            package='gazebo_ros',
             executable='spawn_entity.py',
             arguments=['-entity', 'my_bot', '-topic', 'robot_description'],
             output='screen'
         ),
         
-        # Relay nodes
+        # Relay Cmd
         Node(
             package='my_bot',
-            executable='relay_cmd.py',
+            executable='relay_cmd',
             name='relay_cmd'
         ),
+        
+        # TF Broadcaster
         Node(
             package='my_bot',
-            executable='rover.py',
+            executable='rover',
             name='tf_broadcaster'
         ),
+        
+        # Description Relay
         Node(
             package='my_bot',
-            executable='description_relay.py',
-            name='description_relay'
+            executable='description_relay',
+            name='description_relay',
+            parameters=[{'urdf_path': xacro_path}]
         )
     ])

@@ -11,6 +11,7 @@ class KeyboardTeleop(Node):
         self.angular_speed = 0.8  # рад/с
 
         self.get_logger().info("Keyboard control initialized. Use WASD to move, Q to quit.")
+        self.run()
 
     def run(self):
         try:
@@ -33,15 +34,16 @@ class KeyboardTeleop(Node):
                     continue
 
                 self.cmd_vel_pub.publish(twist)
+                self.get_logger().info(f"Sent command: linear={twist.linear.x}, angular={twist.angular.z}")
         except KeyboardInterrupt:
             self.get_logger().info("KeyboardInterrupt received, shutting down.")
+        finally:
+            self.destroy_node()
+            rclpy.shutdown()
 
 def main(args=None):
     rclpy.init(args=args)
     teleop = KeyboardTeleop()
-    teleop.run()
-    teleop.destroy_node()
-    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
