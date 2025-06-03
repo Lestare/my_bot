@@ -1,47 +1,55 @@
+# Замените существующий launch_sim.launch.py
 import os
-
+from launch import LaunchDescription
+from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
-
-from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-
-from launch_ros.actions import Node
-
-
-
 def generate_launch_description():
-
-
-    # Include the robot_state_publisher launch file, provided by our own package. Force sim time to be enabled
-    # !!! MAKE SURE YOU SET THE PACKAGE NAME CORRECTLY !!!
-
-    package_name='my_bot' #<--- CHANGE ME
-
-    rsp = IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory(package_name),'launch','rsp.launch.py'
-                )]), launch_arguments={'use_sim_time': 'true'}.items()
+    package_name = 'my_bot'
+    
+    # URDF processing
+    urdf_file = os.path.join(
+        get_package_share_directory(package_name),
+        'description',
+        'robot.urdf.xacro'
     )
-
-    # Include the Gazebo launch file, provided by the gazebo_ros package
-    gazebo = IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
-             )
-
-    # Run the spawner node from the gazebo_ros package. The entity name doesn't really matter if you only have a single robot.
-    spawn_entity = Node(package='gazebo_ros', executable='spawn_entity.py',
-                        arguments=['-topic', 'robot_description',
-                                   '-entity', 'my_bot'],
-                        output='screen')
-
-
-
-    # Launch them all!
+    
+    # Nodes
     return LaunchDescription([
-        rsp,
-        gazebo,
-        spawn_entity,
+        # Robot State Publisher
+        Node(
+            package='robot_state_publisher',
+            executable='robot_state_publisher',
+            name='robot_state_publisher',
+            output='screen',
+            parameters=[{
+                'robot_description': open(urdf_file, 'r').read(),
+                'use_sim_time': True
+            }]
+        ),
+        
+        # Gazebo
+        Node(
+            package='gazebo_ros',
+            executable='spawn_entity.py',
+            arguments=['-entity', 'my_bot', '-topic', 'robot_description'],
+            output='screen'
+        ),
+        
+        # Relay nodes
+        Node(
+            package='my_bot',
+            executable='relay_cmd.py',
+            name='relay_cmd'
+        ),
+        Node(
+            package='my_bot',
+            executable='rover.py',
+            name='tf_broadcaster'
+        ),
+        Node(
+            package='my_bot',
+            executable='description_relay.py',
+            name='description_relay'
+        )
     ])
