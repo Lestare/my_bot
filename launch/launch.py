@@ -37,32 +37,11 @@ def generate_launch_description():
                                    '-entity', 'my_bot'],
                         output='screen')
 
-    # Контроллер колес
-    wheel_controller = Node(
-        package='my_bot',
-        executable='wheel_controller.py',
-        name='wheel_controller'
-    )
-    
-    # Одометрия
-    odometry = Node(
-        package='my_bot',
-        executable='rover.py',
-        name='rover_odometry'
-    )
-    
-    # Оператор (управление)
-    operator = Node(
-        package='my_bot',
-        executable='remote.py',
-        name='operator'
-    )
 
+
+    # Launch them all!
     return LaunchDescription([
         rsp,
         gazebo,
         spawn_entity,
-        wheel_controller,
-        odometry,
-        operator
     ])
