@@ -86,3 +86,31 @@ ros2 run joint_state_publisher_gui joint_state_publisher_gui для rviza2
 
     mkdir your_package_name
    
+   Используйте
+cd dev_ws/
+source install/setup.bash
+ros2 launch my_bot rsp.launch.py
+
+cd dev_ws/
+ros2 run joint_state_publisher_gui joint_state_publisher_gui
+
+rviz2
+
+при добавлении файла прописать следующее:
+source /opt/ros/foxy/setup.bash
+source install/setup.bash
+colcon build --symlink-install
+
+
+
+Запуск FreeCAD через терминал
+cd ~/freecad.robotcad && git pull && cd docker && bash run.bash -fc
+
+Команда по запуску проверки управления(не факт что работает)
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+Команда для запуска Gazebo
+source install/setup.bash
+ros2 launch my_bot launch_sim.launch.py
+
+
