@@ -75,3 +75,14 @@ https://docs.ros.org/en/foxy/Installation/Alternatives/Ubuntu-Development-Setup.
 https://articulatedrobotics.xyz/tutorials/ready-for-ros/installing-ros
 
 lalalalaaadasasddassda
+
+source install/setup.bash
+
+colcon build --symlink-install
+
+ros2 launch my_bot название.py для росы
+
+ros2 run joint_state_publisher_gui joint_state_publisher_gui для rviza2
+
+    mkdir your_package_name
+   
