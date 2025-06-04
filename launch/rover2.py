@@ -3,11 +3,10 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, TransformStamped
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import JointState
 import math
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
-from std_msgs.msg import String
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+from tf_transformations import quaternion_from_euler, quaternion_multiply
 
 class Rover(Node):
     def __init__(self):
@@ -36,6 +35,10 @@ class Rover(Node):
             'back_right_wheel': 0.0
         }
         
+        # Параметры ровера
+        self.WHEEL_RADIUS = 0.17
+        self.TRACK_WIDTH = 0.76  # Расстояние между левыми и правыми колёсами
+        
         # Публикация статических трансформ (один раз при старте)
         self.publish_static_transforms()
         
@@ -58,9 +61,6 @@ class Rover(Node):
         t_chassis.transform.translation.z = 0.0
         t_chassis.transform.rotation.w = 1.0
         transforms.append(t_chassis)
-        
-        # Статические части (если есть)
-        # ...
         
         self.static_tf_broadcaster.sendTransform(transforms)
 
@@ -91,7 +91,8 @@ class Rover(Node):
             'back_right_wheel': (0.48, -0.38, 0.0)
         }
         
-        wheel_orientations = {
+        # Базовые ориентации колёс из URDF (в RPY: roll, pitch, yaw)
+        wheel_base_orientations = {
             'left_wheel': (-math.pi/2, 0, 0),
             'right_wheel': (math.pi/2, 0, 0),
             'back_left_wheel': (-math.pi/2, 0, 0),
@@ -110,29 +111,31 @@ class Rover(Node):
             t.transform.translation.y = y
             t.transform.translation.z = z
             
-            # Базовая ориентация + вращение
-            roll, pitch, yaw = wheel_orientations[wheel_name]
-            yaw += self.wheel_angles[wheel_name]  # Добавляем текущий угол вращения
+            # Базовый кватернион ориентации из URDF
+            roll, pitch, yaw = wheel_base_orientations[wheel_name]
+            q_base = quaternion_from_euler(roll, pitch, yaw)
             
-            # Преобразование RPY в кватернион
-            cy = math.cos(yaw * 0.5)
-            sy = math.sin(yaw * 0.5)
-            cp = math.cos(pitch * 0.5)
-            sp = math.sin(pitch * 0.5)
-            cr = math.cos(roll * 0.5)
-            sr = math.sin(roll * 0.5)
+            # Дополнительное вращение вокруг оси Z (для левых колёс) или -Z (для правых)
+            rotation_angle = self.wheel_angles[wheel_name]
+            if 'left' in wheel_name:
+                q_rotation = quaternion_from_euler(0, 0, rotation_angle)
+            else:  # Для правых колёс
+                q_rotation = quaternion_from_euler(0, 0, -rotation_angle)
             
-            t.transform.rotation.w = cr * cp * cy + sr * sp * sy
-            t.transform.rotation.x = sr * cp * cy - cr * sp * sy
-            t.transform.rotation.y = cr * sp * cy + sr * cp * sy
-            t.transform.rotation.z = cr * cp * sy - sr * sp * cy
+            # Комбинируем ориентации: сначала базовый поворот, затем вращение колеса
+            q_total = quaternion_multiply(q_base, q_rotation)
+            
+            t.transform.rotation.x = q_total[0]
+            t.transform.rotation.y = q_total[1]
+            t.transform.rotation.z = q_total[2]
+            t.transform.rotation.w = q_total[3]
             
             transforms.append(t)
         
         # Публикуем все трансформы
         self.tf_broadcaster.sendTransform(transforms)
         
-        # 3. Публикация Odometry (опционально)
+        # 3. Публикация Odometry
         odom = Odometry()
         odom.header.stamp = now
         odom.header.frame_id = 'odom'
@@ -152,23 +155,48 @@ class Rover(Node):
         self.x += msg.linear.x * math.cos(self.theta) * dt
         self.y += msg.linear.x * math.sin(self.theta) * dt
         
-        # Обновляем углы вращения колёс
-        wheel_speed = msg.linear.x / 0.17  # Радиус колеса 0.17 м
-        
-        # Для дифференциального привода (пример)
-        WHEELBASE = 0.86  # Расстояние между передними и задними колёсами
-        track_width = 0.76  # Расстояние между левыми и правыми колёсами
-        
         # Расчет скоростей для каждого колеса
-        left_speed = (msg.linear.x - msg.angular.z * track_width / 2) / 0.17
-        right_speed = (msg.linear.x + msg.angular.z * track_width / 2) / 0.17
+        left_speed = (msg.linear.x - msg.angular.z * self.TRACK_WIDTH / 2) / self.WHEEL_RADIUS
+        right_speed = (msg.linear.x + msg.angular.z * self.TRACK_WIDTH / 2) / self.WHEEL_RADIUS
         
+        # Обновляем углы вращения колёс
         self.wheel_angles['left_wheel'] += left_speed * dt
         self.wheel_angles['right_wheel'] += right_speed * dt
         self.wheel_angles['back_left_wheel'] += left_speed * dt
         self.wheel_angles['back_right_wheel'] += right_speed * dt
         
+        # Логирование с ограничением частоты (1 раз в секунду)
         self.get_logger().info(f"Позиция: X={self.x:.2f}, Y={self.y:.2f}", throttle_duration_sec=1)
+
+def euler_to_quaternion(roll, pitch, yaw):
+    """Конвертация RPY в кватернион (w, x, y, z)"""
+    cy = math.cos(yaw * 0.5)
+    sy = math.sin(yaw * 0.5)
+    cp = math.cos(pitch * 0.5)
+    sp = math.sin(pitch * 0.5)
+    cr = math.cos(roll * 0.5)
+    sr = math.sin(roll * 0.5)
+    
+    w = cr * cp * cy + sr * sp * sy
+    x = sr * cp * cy - cr * sp * sy
+    y = cr * sp * cy + sr * cp * sy
+    z = cr * cp * sy - sr * sp * cy
+    
+    return (w, x, y, z)
+
+def quaternion_multiply(q1, q2):
+    """Умножение двух кватернионов (w, x, y, z)"""
+    w1, x1, y1, z1 = q1
+    w2, x2, y2, z2 = q2
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+    return (w, x, y, z)
+
+def quaternion_from_euler(roll, pitch, yaw):
+    """Аналог tf_transformations.quaternion_from_euler"""
+    return euler_to_quaternion(roll, pitch, yaw)
 
 def main():
     rclpy.init()
