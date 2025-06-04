@@ -7,13 +7,10 @@ import math
 from tf2_ros import TransformBroadcaster
 from std_msgs.msg import String
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
-from tf2_ros import StaticTransformBroadcaster
 
 class Rover(Node):
     def __init__(self):
         super().__init__('rover')
-        
-        self.static_tf_broadcaster = StaticTransformBroadcaster(self)
         
         # Подписка на команды
         self.create_subscription(Twist, 'remote_cmd', self.cmd_callback, 10)
@@ -45,8 +42,6 @@ class Rover(Node):
         self.publish_urdf()
         
         self.get_logger().info("Ровер готов к работе!")
-
-        self.publish_static_transforms()
 
     def publish_urdf(self):
         """Публикация правильного URDF"""
