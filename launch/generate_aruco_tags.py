@@ -13,9 +13,8 @@ os.makedirs("models/aruco_wall/materials/textures", exist_ok=True)
 
 # Генерируем 10 меток с разными ID
 for marker_id in range(10):
-    # Создаем изображение метки (новый метод для OpenCV 4.x)
-    marker_image = np.zeros((MARKER_SIZE, MARKER_SIZE), dtype=np.uint8)
-    marker_image = cv2.aruco.generateImageMarker(DICTIONARY, marker_id, MARKER_SIZE, marker_image, 1)
+    # Создаем изображение метки (метод для OpenCV 4.7+)
+    marker_image = cv2.aruco.generateImageMarker(DICTIONARY, marker_id, MARKER_SIZE)
     
     # Добавляем белое обрамление
     bordered = cv2.copyMakeBorder(
