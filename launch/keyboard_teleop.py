@@ -26,37 +26,89 @@ class Teleop(Node):
         # Настройки терминала
         self.settings = termios.tcgetattr(sys.stdin)
         self.print_instructions()
+    
+    def _update_motors(self):
+        print(f"\rЛевые: {self.left_speed:4}% | Правые: {self.right_speed:4%}", end='')
+        sys.stdout.flush()
 
     def print_instructions(self):
-        print("Управление (зажимайте клавиши):")
-        print("  W - вперед")
-        print("  S - назад")
-        print("  A - влево")
-        print("  D - вправо")
-        print("  Space - стоп")
-        print("  Ctrl+C - выход")
-
+        print("Управление ровером (WASD):")
+        print("W - вперед, S - назад, A - влево, D - вправо")
+        print("Пробел - остановка, Q - выход")
+        print("Комбинации: W+A, W+D, S+A, S+D")
+    
+    def get_key(timeout=0.1):
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            rlist, _, _ = select.select([sys.stdin], [], [], timeout)
+            if rlist:
+                return sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return None
+    
     def update_twist(self):
         twist = Twist()
         
-        # Обработка движения вперед/назад
-        if self.key_states['w'] and not self.key_states['s']:
-            twist.linear.x = self.linear_speed
-        elif self.key_states['s'] and not self.key_states['w']:
-            twist.linear.x = -self.linear_speed
-        
-        # Обработка поворотов
-        if self.key_states['a'] and not self.key_states['d']:
-            twist.angular.z = self.angular_speed
-        elif self.key_states['d'] and not self.key_states['a']:
-            twist.angular.z = -self.angular_speed
-        
-        # Остановка по пробелу
-        if self.key_states[' ']:
-            twist = Twist()
-        
-        return twist
-
+        try:
+            while True:
+                key = self.get_key()
+                if key is None:
+                    continue
+                    
+                key = key.lower()
+                left = self.angular_speed.left_speed
+                right = self.angular_speed.right_speed
+                
+                # Одиночные команды
+                if key == 'w':
+                    left = self.linear_speed
+                    right = self.linear_speed
+                elif key == 's':
+                    left = -self.linear_speed
+                    right = -self.linear_speed
+                elif key == 'a':
+                    left = -self.angular_speed
+                    right = self.angular_speed
+                elif key == 'd':
+                    left = self.angular_speed
+                    right = -self.angular_speed
+                elif key == ' ':
+                    left = 0
+                    right = 0
+                elif key == 'q':
+                    break
+                    
+                # Комбинированные команды (проверяем следующую клавишу без ожидания)
+                if key in ('w', 's'):
+                    next_key = self.get_key(0)
+                    if next_key:
+                        next_key = next_key.lower()
+                        if next_key == 'a':  # Плавный поворот налево
+                            if key == 'w':
+                                left = self.linear_speed - self.angular_speed
+                                right = self.linear_speed
+                            else:  # s
+                                left = -self.linear_speed + self.angular_speed
+                                right = -self.linear_speed
+                        elif next_key == 'd':  # Плавный поворот направо
+                            if key == 'w':
+                                left = self.linear_speed
+                                right = self.linear_speed - self.angular_speed
+                            else:  # s
+                                left = -self.linear_speed
+                                right = -self.linear_speed + self.angular_speed
+                
+                self.angular_speed.set_speeds(left, right)
+                
+        except KeyboardInterrupt:
+            pass
+        finally:
+           self.linear_speed = 0
+           self.angular_speed = 0
+                        
     def run(self):
         try:
             tty.setraw(sys.stdin.fileno())
