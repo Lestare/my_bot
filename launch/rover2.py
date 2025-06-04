@@ -3,56 +3,52 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, TransformStamped
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import JointState
 import math
-from tf2_ros import TransformBroadcaster
+from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 from std_msgs.msg import String
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
-from tf2_ros import StaticTransformBroadcaster
-
 
 class Rover(Node):
     def __init__(self):
         super().__init__('rover')
-        self.static_tf_broadcaster = StaticTransformBroadcaster(self)
         
         # Подписка на команды
         self.create_subscription(Twist, 'remote_cmd', self.cmd_callback, 10)
         
         # Публикация TF
         self.tf_broadcaster = TransformBroadcaster(self)
+        self.static_tf_broadcaster = StaticTransformBroadcaster(self)
         
         # Публикация Odometry
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
-        
-        # Публикация URDF с правильным QoS
-        qos_profile = QoSProfile(
-            depth=1,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-            reliability=ReliabilityPolicy.RELIABLE
-        )
-        self.urdf_pub = self.create_publisher(String, '/robot_description', qos_profile)
         
         # Имитация положения
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
         
-        # Таймеры
-        self.create_timer(0.05, self.publish_transforms)  # 20 Гц
-        self.create_timer(1.0, self.publish_urdf)  # Публикуем URDF раз в секунду
+        # Углы вращения колёс
+        self.wheel_angles = {
+            'left_wheel': 0.0,
+            'right_wheel': 0.0,
+            'back_left_wheel': 0.0,
+            'back_right_wheel': 0.0
+        }
         
-        # Публикация URDF при старте
-        self.publish_urdf()
+        # Публикация статических трансформ (один раз при старте)
+        self.publish_static_transforms()
+        
+        # Таймеры
+        self.create_timer(0.05, self.publish_dynamic_transforms)  # 20 Гц
         
         self.get_logger().info("Ровер готов к работе!")
 
-        self.publish_static_transforms()
-
     def publish_static_transforms(self):
-        """Публикуем статические трансформы для колёс и шасси"""
+        """Публикация статических трансформ (неизменные части)"""
         transforms = []
         
-        # Трансформа для шасси
+        # Шасси (chassis)
         t_chassis = TransformStamped()
         t_chassis.header.stamp = self.get_clock().now().to_msg()
         t_chassis.header.frame_id = 'base_link'
@@ -60,26 +56,63 @@ class Rover(Node):
         t_chassis.transform.translation.x = -0.1
         t_chassis.transform.translation.y = 0.0
         t_chassis.transform.translation.z = 0.0
-        t_chassis.transform.rotation.w = 1.0  # Без вращения
+        t_chassis.transform.rotation.w = 1.0
         transforms.append(t_chassis)
         
-        # Трансформы для колёс (координаты из вашего URDF)
-        wheels = [
-            ('left_wheel', -0.38, 0.38, 0, -math.pi/2, 0, 0),
-            ('right_wheel', -0.38, -0.38, 0, math.pi/2, 0, 0),
-            ('back_left_wheel', 0.48, 0.38, 0, -math.pi/2, 0, 0),
-            ('back_right_wheel', 0.48, -0.38, 0, math.pi/2, 0, 0)
-        ]
+        # Статические части (если есть)
+        # ...
         
-        for name, x, y, z, roll, pitch, yaw in wheels:
+        self.static_tf_broadcaster.sendTransform(transforms)
+
+    def publish_dynamic_transforms(self):
+        """Публикация динамических трансформ (изменяющиеся части)"""
+        transforms = []
+        now = self.get_clock().now().to_msg()
+        
+        # 1. Трансформа для основания (odom → base_link)
+        t_base = TransformStamped()
+        t_base.header.stamp = now
+        t_base.header.frame_id = 'odom'
+        t_base.child_frame_id = 'base_link'
+        t_base.transform.translation.x = self.x
+        t_base.transform.translation.y = self.y
+        t_base.transform.translation.z = 0.0
+        cy = math.cos(self.theta * 0.5)
+        sy = math.sin(self.theta * 0.5)
+        t_base.transform.rotation.z = sy
+        t_base.transform.rotation.w = cy
+        transforms.append(t_base)
+        
+        # 2. Трансформы для колёс (base_link → wheel)
+        wheel_positions = {
+            'left_wheel': (-0.38, 0.38, 0.0),
+            'right_wheel': (-0.38, -0.38, 0.0),
+            'back_left_wheel': (0.48, 0.38, 0.0),
+            'back_right_wheel': (0.48, -0.38, 0.0)
+        }
+        
+        wheel_orientations = {
+            'left_wheel': (-math.pi/2, 0, 0),
+            'right_wheel': (math.pi/2, 0, 0),
+            'back_left_wheel': (-math.pi/2, 0, 0),
+            'back_right_wheel': (math.pi/2, 0, 0)
+        }
+        
+        for wheel_name in self.wheel_angles:
             t = TransformStamped()
-            t.header.stamp = self.get_clock().now().to_msg()
+            t.header.stamp = now
             t.header.frame_id = 'base_link'
-            t.child_frame_id = name
+            t.child_frame_id = wheel_name
             
+            # Позиция из URDF
+            x, y, z = wheel_positions[wheel_name]
             t.transform.translation.x = x
             t.transform.translation.y = y
             t.transform.translation.z = z
+            
+            # Базовая ориентация + вращение
+            roll, pitch, yaw = wheel_orientations[wheel_name]
+            yaw += self.wheel_angles[wheel_name]  # Добавляем текущий угол вращения
             
             # Преобразование RPY в кватернион
             cy = math.cos(yaw * 0.5)
@@ -96,169 +129,57 @@ class Rover(Node):
             
             transforms.append(t)
         
-        # Отправляем все трансформы
-        self.static_tf_broadcaster.sendTransform(transforms)
-
-#     def publish_urdf(self):
-#         """Публикация правильного URDF"""
-#         urdf = """
-# <?xml version="1.0"?>
-# <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rover">
-
-#     <material name="white">
-#         <color rgba="1 1 1 1"/>
-#     </material>
-
-#     <material name="orange">
-#         <color rgba="1 0.3 0.1 1"/>
-#     </material>
-
-#     <material name="blue">
-#         <color rgba="0.2 0.2 1 1"/>
-#     </material>
-
-#     <material name="black">
-#         <color rgba="0 0 0 1"/>
-#     </material>
-
-#     <link name="base_link"/>
-
-#     <joint name="chassis_joint" type="fixed">
-#         <parent link="base_link"/>
-#         <child link="chassis"/>
-#         <origin xyz="-0.1 0 0"/>
-#     </joint>
-
-#     <link name="chassis">
-#         <visual>
-#             <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
-#             <geometry>
-#                 <box size="1.2 0.6 0.26"/>
-#             </geometry>
-#             <material name="white"/>
-#         </visual>
-#     </link>
-    
-#     <!-- LEFT WHEEL -->
-
-#     <joint name="left_wheel_joint" type="continuous">
-#         <parent link="base_link"/>
-#         <child link="left_wheel"/>
-#         <origin xyz="-0.38 0.38 0" rpy="-1.5708 0 0"/>
-#         <axis xyz="0 0 1"/>
-#     </joint>
-
-#     <link name="left_wheel">
-#         <visual>
-#             <geometry>
-#                 <cylinder length="0.15" radius="0.17"/>
-#             </geometry>
-#             <material name="blue"/>
-#         </visual>
-#     </link>
- 
-#     <!-- RIGHT WHEEL -->
-
-#     <joint name="right_wheel_joint" type="continuous">
-#         <parent link="base_link"/>
-#         <child link="right_wheel"/>
-#         <origin xyz="-0.38 -0.38 0" rpy="1.5708 0 0"/>
-#         <axis xyz="0 0 -1"/>
-#     </joint>
-
-#     <link name="right_wheel">
-#         <visual>
-#             <geometry>
-#                 <cylinder length="0.15" radius="0.17"/>
-#             </geometry>
-#             <material name="blue"/>
-#         </visual>
-#     </link>
-
-#     <!-- BACK LEFT WHEEL -->
-
-#     <joint name="back_left_wheel_joint" type="continuous">
-#         <parent link="base_link"/>
-#         <child link="back_left_wheel"/>
-#         <origin xyz="0.48 0.38 0" rpy="-1.5708 0 0"/>
-#         <axis xyz="0 0 1"/>
-#     </joint>
-
-#     <link name="back_left_wheel">
-#         <visual>
-#             <geometry>
-#                 <cylinder length="0.15" radius="0.17"/>
-#             </geometry>
-#             <material name="blue"/>
-#         </visual>
-#     </link>
-
-#     <!-- BACK RIGHT WHEEL -->
-
-#     <joint name="back_right_wheel_joint" type="continuous">
-#         <parent link="base_link"/>
-#         <child link="back_right_wheel"/>
-#         <origin xyz="0.48 -0.38 0" rpy="1.5708 0 0"/>
-#         <axis xyz="0 0 -1"/>
-#     </joint>
-
-#     <link name="back_right_wheel">
-#         <visual>
-#             <geometry>
-#                 <cylinder length="0.15" radius="0.17"/>
-#             </geometry>
-#             <material name="blue"/>
-#         </visual>
-#     </link>
-
-# </robot>
-#         """
-#         msg = String()
-#         msg.data = urdf
-#         self.urdf_pub.publish(msg)
-#         self.get_logger().info("URDF опубликован")
-
-    def cmd_callback(self, msg):
-        # Обновляем положение на основе команд
-        self.theta += msg.angular.z * 0.05
-        self.x += msg.linear.x * math.cos(self.theta) * 0.05
-        self.y += msg.linear.x * math.sin(self.theta) * 0.05
-        self.get_logger().info(f"Позиция: X={self.x:.2f}, Y={self.y:.2f}")
-
-    def publish_transforms(self):
-        # Создаем трансформацию для основания
-        t_base = TransformStamped()
-        t_base.header.stamp = self.get_clock().now().to_msg()
-        t_base.header.frame_id = 'odom'
-        t_base.child_frame_id = 'base_link'
-        t_base.transform.translation.x = self.x
-        t_base.transform.translation.y = self.y
-        t_base.transform.translation.z = 0.0
-        cy = math.cos(self.theta * 0.5)
-        sy = math.sin(self.theta * 0.5)
-        t_base.transform.rotation.z = sy
-        t_base.transform.rotation.w = cy
+        # Публикуем все трансформы
+        self.tf_broadcaster.sendTransform(transforms)
         
-        # Публикуем трансформацию
-        self.tf_broadcaster.sendTransform(t_base)
-        
-        # Публикация Odometry
+        # 3. Публикация Odometry (опционально)
         odom = Odometry()
-        odom.header.stamp = t_base.header.stamp
+        odom.header.stamp = now
         odom.header.frame_id = 'odom'
         odom.child_frame_id = 'base_link'
         odom.pose.pose.position.x = self.x
         odom.pose.pose.position.y = self.y
-        odom.pose.pose.position.z = 0.0
+        odom.pose.pose.orientation.z = sy
+        odom.pose.pose.orientation.w = cy
+        self.odom_pub.publish(odom)
+
+    def cmd_callback(self, msg):
+        """Обработка команд движения"""
+        dt = 0.05  # Период обновления
         
+        # Обновляем положение основания
+        self.theta += msg.angular.z * dt
+        self.x += msg.linear.x * math.cos(self.theta) * dt
+        self.y += msg.linear.x * math.sin(self.theta) * dt
         
+        # Обновляем углы вращения колёс
+        wheel_speed = msg.linear.x / 0.17  # Радиус колеса 0.17 м
+        
+        # Для дифференциального привода (пример)
+        WHEELBASE = 0.86  # Расстояние между передними и задними колёсами
+        track_width = 0.76  # Расстояние между левыми и правыми колёсами
+        
+        # Расчет скоростей для каждого колеса
+        left_speed = (msg.linear.x - msg.angular.z * track_width / 2) / 0.17
+        right_speed = (msg.linear.x + msg.angular.z * track_width / 2) / 0.17
+        
+        self.wheel_angles['left_wheel'] += left_speed * dt
+        self.wheel_angles['right_wheel'] += right_speed * dt
+        self.wheel_angles['back_left_wheel'] += left_speed * dt
+        self.wheel_angles['back_right_wheel'] += right_speed * dt
+        
+        self.get_logger().info(f"Позиция: X={self.x:.2f}, Y={self.y:.2f}", throttle_duration_sec=1)
 
 def main():
     rclpy.init()
     node = Rover()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
