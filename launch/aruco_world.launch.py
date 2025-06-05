@@ -26,7 +26,7 @@ def generate_launch_description():
 
     # Запуск Gazebo с нашим миром
     gazebo = ExecuteProcess(
-        cmd=['gazebo', '--verbose', world_path, '-s', 'libgazebo_ros_init.so'],
+        cmd=['gazebo', '--verbose', world_path, '-s', 'libgazebo_ros_init.so', '-s', 'libgazebo_ros_factory.so'],
         output='screen'
     )
 
@@ -38,18 +38,47 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Измененный узел для ArUco
+    # Убедимся, что пути к медиа-ресурсам установлены правильно
+    media_path = os.path.join(
+        get_package_share_directory(package_name),
+        'launch', 'models', 'aruco_wall', 'materials'
+    )
+    
+    # Узел для публикации статических трансформаций камеры
+    static_tf_camera = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0.2', '0', '0.1', '0', '0', '0', 'base_link', 'camera_link'],
+        output='screen'
+    )
+
+    # Узел для публикации статических трансформаций карты
+    static_tf_map = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
+        output='screen'
+    )
+
+    # Узел для публикации информации о камере (заглушка)
+    camera_info_publisher = Node(
+        package='my_bot',
+        executable='camera_info_publisher.py',
+        name='camera_info_publisher',
+        output='screen'
+    )
+
+    # Узел для визуализации маркеров в RViz
     aruco_marker_publisher = Node(
-    package='aruco_opencv',  # Или 'ros2_aruco' в зависимости от установки
-    executable='aruco_node',
-    name='aruco_node',
-    parameters=[
-        {'image_topic': '/camera/image_raw'},
-        {'camera_info_topic': '/camera/camera_info'},
-        {'marker_size': 0.15},  # Размер метки в метрах
-        {'dictionary': 'DICT_4X4_50'},  # Используем 'dictionary' вместо 'marker_dict'
-    ]
-)
+        package='my_bot',
+        executable='aruco_detector.py',
+        name='aruco_detector',
+        output='screen',
+        parameters=[
+            {'marker_size': 0.15},  # Размер метки в метрах
+            {'dictionary': 'DICT_4X4_50'},
+        ]
+    )
 
     # Запуск RViz
     rviz_config = os.path.join(
@@ -70,6 +99,9 @@ def generate_launch_description():
         rsp,
         gazebo,
         spawn_entity,
+        static_tf_camera,
+        static_tf_map,
+        camera_info_publisher,
         aruco_marker_publisher,
         rviz_node
     ])
