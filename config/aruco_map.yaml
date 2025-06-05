@@ -1,0 +1,13 @@
+markers:
+  "0":  # ID метки
+    position: [0.0, 5.0, 0.75]  # x, y, z
+    orientation: [0.0, 0.0, 0.0, 1.0]  # qx, qy, qz, qw
+  "1":
+    position: [5.0, 0.0, 0.75]
+    orientation: [0.0, 0.0, 0.707, 0.707]  # 90° по Z
+  "2":
+    position: [0.0, -5.0, 0.75]
+    orientation: [0.0, 0.0, 1.0, 0.0]  # 180° по Z
+  "3":
+    position: [-5.0, 0.0, 0.75]
+    orientation: [0.0, 0.0, -0.707, 0.707]  # -90° по Z
