@@ -107,9 +107,9 @@ class Rover(Node):
         # Базовые ориентации из URDF
         wheel_base_orientations = {
             'left_wheel': self.euler_to_quaternion(-math.pi/2, 0, 0),
-            'right_wheel': self.euler_to_quaternion(math.pi/2, 0, 0),
+            'right_wheel': self.euler_to_quaternion(-math.pi/2, 0, 0),
             'back_left_wheel': self.euler_to_quaternion(-math.pi/2, 0, 0),
-            'back_right_wheel': self.euler_to_quaternion(math.pi/2, 0, 0)
+            'back_right_wheel': self.euler_to_quaternion(-math.pi/2, 0, 0)
         }
         
         for wheel_name, pos in wheel_positions.items():
