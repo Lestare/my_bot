@@ -1,21 +1,47 @@
 #!/usr/bin/env python3
 import cv2
 import numpy as np
+import os
+
+# Настройки генерации
+DICTIONARY = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_50)
+MARKER_SIZE = 500  # размер в пикселях
+BORDER_SIZE = 50   # размер белой рамки
 
 # Создаем директорию для текстур
-import os
-os.makedirs("media/materials/textures", exist_ok=True)
+os.makedirs("models/aruco_wall/materials/textures", exist_ok=True)
 
-# Генерируем метки
-dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+# Генерируем 10 меток с разными ID
+for marker_id in range(10):
+    # Создаем пустое изображение
+    marker_image = np.zeros((MARKER_SIZE, MARKER_SIZE), dtype=np.uint8)
+    
+    # Генерируем метку - используем drawMarker для OpenCV 4.2
+    marker_image = cv2.aruco.drawMarker(
+        dictionary=DICTIONARY,
+        id=marker_id,
+        sidePixels=MARKER_SIZE,
+        img=marker_image,
+        borderBits=1
+    )
+    
+    # Добавляем белое обрамление
+    bordered = cv2.copyMakeBorder(
+        marker_image, 
+        BORDER_SIZE, BORDER_SIZE, BORDER_SIZE, BORDER_SIZE, 
+        cv2.BORDER_CONSTANT, 
+        value=255
+    )
+    
+    # Сохраняем в формате PNG
+    filename = f"models/aruco_wall/materials/textures/aruco_{marker_id}.png"
+    cv2.imwrite(filename, bordered)
+    
+    # Показываем сгенерированную метку для проверки
+    cv2.imshow(f"Marker {marker_id}", bordered)
+    cv2.waitKey(300)  # Показ 0.3 секунды
+    cv2.destroyAllWindows()
+    
+    print(f"Generated: {filename}")
 
-for marker_id in range(5):  # Создаем 5 меток
-    marker_size = 700  # пикселей
-    marker_img = cv2.aruco.generateImageMarker(dictionary, marker_id, marker_size)
-    
-    # Добавляем белую рамку
-    bordered = np.ones((marker_size+100, marker_size+100), dtype=np.uint8) * 255
-    bordered[50:-50, 50:-50] = marker_img
-    
-    cv2.imwrite(f"media/materials/textures/tag_6x6_{marker_id}.png", bordered)
-    print(f"Generated marker {marker_id}")
+print("All markers generated!")
