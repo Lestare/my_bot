@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist, TransformStamped
+from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import JointState
 import math
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
+from tf_transformations import euler_from_quaternion
 
 class Rover(Node):
     def __init__(self):
         super().__init__('rover')
         
-        # Создаем QoS профиль для трансформ (TransientLocal для RViz)
+        # Создаем QoS профиль для трансформ
         tf_qos = QoSProfile(
             depth=10,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -19,14 +21,17 @@ class Rover(Node):
             history=HistoryPolicy.KEEP_LAST
         )
         
-        # Подписка на команды
-        self.create_subscription(Twist, 'remote_cmd', self.cmd_callback, 10)
+        # Подписка на реальную одометрию из Gazebo
+        self.create_subscription(Odometry, 'gazebo_odom', self.gazebo_odom_callback, 10)
         
-        # Публикация TF с явным QoS
+        # Подписка на состояния шарниров
+        self.create_subscription(JointState, 'joint_states', self.joint_states_callback, 10)
+        
+        # Публикация TF
         self.tf_broadcaster = TransformBroadcaster(self, qos=tf_qos)
         self.static_tf_broadcaster = StaticTransformBroadcaster(self, qos=tf_qos)
         
-        # Публикация Odometry с явным QoS
+        # Публикация Odometry
         odom_qos = QoSProfile(
             depth=10,
             durability=DurabilityPolicy.VOLATILE,
@@ -35,12 +40,10 @@ class Rover(Node):
         )
         self.odom_pub = self.create_publisher(Odometry, 'odom', odom_qos)
         
-        # Имитация положения
+        # Актуальные данные из Gazebo
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
-        
-        # Углы вращения колёс
         self.wheel_angles = {
             'left_wheel': 0.0,
             'right_wheel': 0.0,
@@ -48,17 +51,28 @@ class Rover(Node):
             'back_right_wheel': 0.0
         }
         
-        # Параметры ровера
-        self.WHEEL_RADIUS = 0.17
-        self.TRACK_WIDTH = 0.76
-        
         # Публикация статических трансформ
         self.publish_static_transforms()
         
-        # Таймеры
+        # Таймер
         self.create_timer(0.05, self.publish_dynamic_transforms)
         
-        self.get_logger().info("Ровер готов к работе!")
+        self.get_logger().info("Ровер синхронизирован с Gazebo!")
+
+    def gazebo_odom_callback(self, msg):
+        """Получение реального положения из Gazebo"""
+        self.x = msg.pose.pose.position.x
+        self.y = msg.pose.pose.position.y
+        
+        # Конвертация кватерниона в угол
+        q = msg.pose.pose.orientation
+        _, _, self.theta = euler_from_quaternion([q.x, q.y, q.z, q.w])
+
+    def joint_states_callback(self, msg):
+        """Получение реальных углов колёс из Gazebo"""
+        for i, name in enumerate(msg.name):
+            if name in self.wheel_angles:
+                self.wheel_angles[name] = msg.position[i]
 
     def publish_static_transforms(self):
         """Публикация статических трансформ"""
