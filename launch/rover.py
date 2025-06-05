@@ -126,7 +126,7 @@ class Rover(Node):
             
             # Вращение колеса
             angle = self.wheel_angles[wheel_name]
-            q_rot = self.euler_to_quaternion(0, angle, 0)  # Вращение вокруг оси Y
+            q_rot = self.euler_to_quaternion(0, 0, angle)  # Вращение вокруг оси Y
             
             # Комбинируем ориентации
             q_total = self.quaternion_multiply(q_base, q_rot)
