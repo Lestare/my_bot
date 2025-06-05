@@ -33,7 +33,7 @@ if(BUILD_TESTING)
 endif()
 
 install(
-  DIRECTORY config description launch worlds media
+  DIRECTORY config description launch worlds media models
   DESTINATION share/${PROJECT_NAME}
 )   
 
