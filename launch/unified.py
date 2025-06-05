@@ -1,26 +1,23 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, ExecuteProcess, RegisterEventHandler
+from launch.event_handlers import OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
 def generate_launch_description():
     package_name = 'my_bot'
-
-    # Запуск robot_state_publisher
+    pkg_path = get_package_share_directory(package_name)
+    
+    # Основные компоненты
     rsp = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            os.path.join(
-                get_package_share_directory(package_name),
-                'launch',
-                'rsp.launch.py'
-            )
+            os.path.join(pkg_path, 'launch', 'rsp.launch.py')
         ]),
         launch_arguments={'use_sim_time': 'true'}.items()
     )
 
-    # Запуск Gazebo
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             os.path.join(
@@ -31,7 +28,6 @@ def generate_launch_description():
         ])
     )
 
-    # Спавн робота в Gazebo
     spawn_entity = Node(
         package='gazebo_ros',
         executable='spawn_entity.py',
@@ -39,40 +35,38 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Запуск RViz2 с конфигурацией
+    # RViz2 с конфигурацией
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
-        arguments=['-d', os.path.join(
-            get_package_share_directory(package_name),
-            'rviz',
-            'config.rviz'  # Убедитесь что файл конфига существует
-        )]
+        arguments=['-d', os.path.join(pkg_path, 'rviz', 'config.rviz')],
+        output='screen'
     )
 
-    # Запуск телеоперации (2 варианта)
-    # Вариант 1: Стандартный teleop_twist_keyboard
-    # teleop_keyboard = Node(
-    #   package='teleop_twist_keyboard',
-    #    executable='teleop_twist_keyboard',
-    #    output='screen',
-    #    prefix='xterm -e',  # Требует установленного xterm
-    #    remappings=[('/cmd_vel', '/cmd_vel_teleop')]  # Переназначение топика при необходимости
-    # )
+    # GUI для управления сочленениями
+    joint_gui = Node(
+        package='joint_state_publisher_gui',
+        executable='joint_state_publisher_gui',
+        name='joint_state_publisher_gui',
+        output='screen'
+    )
+
+    # Команда для запуска управления в отдельном терминале
+    teleop_command = f"cd {os.path.join(pkg_path, 'launch')} && python3 keyboard_teleop.py"
     
-    # Вариант 2: Кастомный скрипт (раскомментировать если нужно)
-    teleop_custom = ExecuteProcess(
-        cmd=[
-            'python3', 
-            os.path.join(
-                get_package_share_directory(package_name),
-                'launch',
-                'keyboard_teleop.py'  # Убедитесь что файл существует
-            )
-        ],
-        output='screen',
-        shell=True
+    # Создаем действие для запуска в новом терминале
+    teleop_terminal = ExecuteProcess(
+        cmd=['gnome-terminal', '--', 'bash', '-c', teleop_command],
+        output='screen'
+    )
+
+    # Обработчик события: запускаем управление после инициализации RViz
+    launch_teleop = RegisterEventHandler(
+        event_handler=OnProcessStart(
+            target_action=rviz_node,
+            on_start=[teleop_terminal]
+        )
     )
 
     return LaunchDescription([
@@ -80,5 +74,6 @@ def generate_launch_description():
         gazebo,
         spawn_entity,
         rviz_node,
-        teleop_custom  # Или teleop_custom для кастомного скрипта
+        joint_gui,
+        launch_teleop
     ])
