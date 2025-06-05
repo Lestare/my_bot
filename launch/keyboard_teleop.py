@@ -20,95 +20,79 @@ class Teleop(Node):
             's': False,
             'a': False,
             'd': False,
+            'q': False,
+            'e': False,
+            'z': False,
+            'c': False,
+            'r': False,
+            'f': False,
             ' ': False
         }
         
         # Настройки терминала
         self.settings = termios.tcgetattr(sys.stdin)
         self.print_instructions()
-    
-    def _update_motors(self):
-        print(f"\rЛевые: {self.left_speed:4}% | Правые: {self.right_speed:4%}", end='')
-        sys.stdout.flush()
 
     def print_instructions(self):
-        print("Управление ровером (WASD):")
-        print("W - вперед, S - назад, A - влево, D - вправо")
-        print("Пробел - остановка, Q - выход")
-        print("Комбинации: W+A, W+D, S+A, S+D")
-    
-    def get_key(timeout=0.1):
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            rlist, _, _ = select.select([sys.stdin], [], [], timeout)
-            if rlist:
-                return sys.stdin.read(1)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        return None
-    
+        print("Управление (зажимайте клавиши):")
+        print("  W - вперед")
+        print("  S - назад")
+        print("  A - влево")
+        print("  D - вправо")
+        print(" Q - вперед+влево")
+        print(" E - вперед+вправо")
+        print(" Z - назад+влево")
+        print(" C - назад+вправо")
+        print(" R - увеличение")
+        print(" F - уменьшение")
+        print("  Space - стоп")
+        print("  Ctrl+C - выход")
+
     def update_twist(self):
         twist = Twist()
         
-        try:
-            while True:
-                key = self.get_key()
-                if key is None:
-                    continue
-                    
-                key = key.lower()
-                left = self.angular_speed.left_speed
-                right = self.angular_speed.right_speed
-                
-                # Одиночные команды
-                if key == 'w':
-                    left = self.linear_speed
-                    right = self.linear_speed
-                elif key == 's':
-                    left = -self.linear_speed
-                    right = -self.linear_speed
-                elif key == 'a':
-                    left = -self.angular_speed
-                    right = self.angular_speed
-                elif key == 'd':
-                    left = self.angular_speed
-                    right = -self.angular_speed
-                elif key == ' ':
-                    left = 0
-                    right = 0
-                elif key == 'q':
-                    break
-                    
-                # Комбинированные команды (проверяем следующую клавишу без ожидания)
-                if key in ('w', 's'):
-                    next_key = self.get_key(0)
-                    if next_key:
-                        next_key = next_key.lower()
-                        if next_key == 'a':  # Плавный поворот налево
-                            if key == 'w':
-                                left = self.linear_speed - self.angular_speed
-                                right = self.linear_speed
-                            else:  # s
-                                left = -self.linear_speed + self.angular_speed
-                                right = -self.linear_speed
-                        elif next_key == 'd':  # Плавный поворот направо
-                            if key == 'w':
-                                left = self.linear_speed
-                                right = self.linear_speed - self.angular_speed
-                            else:  # s
-                                left = -self.linear_speed
-                                right = -self.linear_speed + self.angular_speed
-                
-                self.angular_speed.set_speeds(left, right)
-                
-        except KeyboardInterrupt:
-            pass
-        finally:
-           self.linear_speed = 0
-           self.angular_speed = 0
-                        
+        # Обработка движения вперед/назад
+        if self.key_states['w'] and not self.key_states['s']:
+            twist.linear.x = self.linear_speed
+        elif self.key_states['s'] and not self.key_states['w']:
+            twist.linear.x = -self.linear_speed
+        
+        # Обработка поворотов
+        if self.key_states['a'] and not self.key_states['d']:
+            twist.angular.z = self.angular_speed
+        elif self.key_states['d'] and not self.key_states['a']:
+            twist.angular.z = -self.angular_speed
+        
+        # Обработка движения вперед/назад c поворотом влево
+        if self.key_states['q']:
+            twist.linear.x = self.linear_speed
+            twist.angular.z = self.angular_speed
+        if self.key_states['z']:
+            twist.linear.x = -self.linear_speed
+            twist.angular.z = self.angular_speed
+        
+        # Обработка движения вперёд/назад с поворотом вправо
+        if self.key_states['e']:
+            twist.linear.x = self.linear_speed
+            twist.angular.z = -self.angular_speed
+        if self.key_states['c']:
+            twist.linear.x = -self.linear_speed
+            twist.angular.z = -self.angular_speed
+        
+        # Обработка движения вперёд/назад с поворотом вправо
+        if self.key_states['r']:
+            self.linear_speed = self.linear_speed * 1.10
+            self.angular_speed = self.angular_speed * 1.10
+        if self.key_states['f']:
+            self.linear_speed = self.linear_speed / 1.10
+            self.angular_speed = self.angular_speed / 1.10
+
+        # Остановка по пробелу
+        if self.key_states[' ']:
+            twist = Twist()
+        
+        return twist
+
     def run(self):
         try:
             tty.setraw(sys.stdin.fileno())
@@ -125,13 +109,13 @@ class Teleop(Node):
                     # Обновляем состояние клавиш
                     if key in self.key_states:
                         self.key_states[key] = True
-                
+                 
                 # Отправляем команду движения
                 twist = self.update_twist()
                 self.publisher_.publish(twist)
                 
                 # Сбрасываем состояние клавиш (кроме пробела)
-                for k in ['w', 's', 'a', 'd']:
+                for k in ['w', 's', 'a', 'd', 'q', 'e', 'z', 'c', 'r', 'f' , ' ']:
                     self.key_states[k] = False
                 
                 # Небольшая задержка для CPU
@@ -151,7 +135,4 @@ def main(args=None):
     teleop = Teleop()
     teleop.run()
     teleop.destroy_node()
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
+main()
