@@ -38,18 +38,18 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Запуск узла для визуализации ArUco маркеров в RViz
+    # Измененный узел для ArUco
     aruco_marker_publisher = Node(
-        package='ros2_aruco',
-        executable='aruco_node',
-        name='aruco_node',
-        parameters=[
-            {'image_topic': '/camera/image_raw'},
-            {'camera_info_topic': '/camera/camera_info'},
-            {'marker_size': 0.15},  # Размер метки в метрах
-            {'marker_dict': 'DICT_4X4_50'},
-        ]
-    )
+    package='aruco_opencv',  # Или 'ros2_aruco' в зависимости от установки
+    executable='aruco_node',
+    name='aruco_node',
+    parameters=[
+        {'image_topic': '/camera/image_raw'},
+        {'camera_info_topic': '/camera/camera_info'},
+        {'marker_size': 0.15},  # Размер метки в метрах
+        {'dictionary': 'DICT_4X4_50'},  # Используем 'dictionary' вместо 'marker_dict'
+    ]
+)
 
     # Запуск RViz
     rviz_config = os.path.join(
