@@ -13,9 +13,6 @@ class Rover(Node):
     def __init__(self):
         super().__init__('rover')
         
-        # Отключаем TF публикацию - Gazebo делает это сам
-        self.get_logger().warning("Ровер работает в режиме только статических трансформ")
-        
         # Создаем QoS профиль для трансформ
         tf_qos = QoSProfile(
             depth=10,
@@ -24,32 +21,55 @@ class Rover(Node):
             history=HistoryPolicy.KEEP_LAST
         )
         
-        # Публикация TF только для статических элементов
+        # Подписка на реальные данные из Gazebo
+        self.create_subscription(Odometry, 'odom', self.odom_callback, 10)
+        self.create_subscription(JointState, 'joint_states', self.joint_states_callback, 10)
+        
+        # Публикация TF
+        self.tf_broadcaster = TransformBroadcaster(self, qos=tf_qos)
         self.static_tf_broadcaster = StaticTransformBroadcaster(self, qos=tf_qos)
+        
+        # Инициализация переменных
+        self.x = 0.0
+        self.y = 0.0
+        self.theta = 0.0
+        self.wheel_angles = {
+            'left_wheel_joint': 0.0,
+            'right_wheel_joint': 0.0,
+            'back_left_wheel_joint': 0.0,
+            'back_right_wheel_joint': 0.0
+        }
         
         # Публикация статических трансформ
         self.publish_static_transforms()
         
-        # Мониторинг данных
-        self.create_subscription(Odometry, 'odom', self.odom_callback, 10)
-        self.create_subscription(JointState, 'joint_states', self.joint_states_callback, 10)
+        # Таймер для публикации динамических трансформ
+        self.create_timer(0.05, self.publish_dynamic_transforms)
         
-        self.get_logger().info("Ровер синхронизирован! Используются TF из Gazebo")
+        self.get_logger().info("Ровер готов! Синхронизация восстановлена!")
 
     def odom_callback(self, msg):
-        """Мониторинг одометрии"""
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
-        self.get_logger().info(f"Одометрия: X={x:.2f}, Y={y:.2f}", throttle_duration_sec=1)
+        """Обработка реальной одометрии из Gazebo"""
+        self.x = msg.pose.pose.position.x
+        self.y = msg.pose.pose.position.y
+        
+        # Конвертация кватерниона в угол рысканья (yaw)
+        orientation_q = msg.pose.pose.orientation
+        _, _, self.theta = euler_from_quaternion([
+            orientation_q.x,
+            orientation_q.y,
+            orientation_q.z,
+            orientation_q.w
+        ])
 
     def joint_states_callback(self, msg):
-        """Мониторинг состояний шарниров"""
+        """Обработка реальных углов колёс из Gazebo"""
         for i, name in enumerate(msg.name):
-            angle = msg.position[i]
-            self.get_logger().info(f"Шарнир {name}: {angle:.2f} рад", throttle_duration_sec=1)
+            if name in self.wheel_angles:
+                self.wheel_angles[name] = msg.position[i]
 
     def publish_static_transforms(self):
-        """Публикация ТОЛЬКО статических трансформ"""
+        """Публикация статических трансформ (один раз)"""
         transforms = []
         
         # Шасси (chassis)
@@ -64,7 +84,73 @@ class Rover(Node):
         transforms.append(t_chassis)
         
         self.static_tf_broadcaster.sendTransform(transforms)
-        self.get_logger().info("Статические трансформы опубликованы")
+
+    def publish_dynamic_transforms(self):
+        """Публикация динамических трансформ (вызывается по таймеру)"""
+        transforms = []
+        now = self.get_clock().now().to_msg()
+        
+        # Трансформация odom → base_link
+        t_base = TransformStamped()
+        t_base.header.stamp = now
+        t_base.header.frame_id = 'odom'
+        t_base.child_frame_id = 'base_link'
+        t_base.transform.translation.x = self.x
+        t_base.transform.translation.y = self.y
+        t_base.transform.translation.z = 0.0
+        
+        # Конвертация угла в кватернион
+        q = quaternion_from_euler(0, 0, self.theta)
+        t_base.transform.rotation.x = q[0]
+        t_base.transform.rotation.y = q[1]
+        t_base.transform.rotation.z = q[2]
+        t_base.transform.rotation.w = q[3]
+        transforms.append(t_base)
+        
+        # Трансформы колёс с учетом URDF-ориентации
+        wheel_positions = {
+            'left_wheel_joint': (-0.38, 0.38, 0.0),
+            'right_wheel_joint': (-0.38, -0.38, 0.0),
+            'back_left_wheel_joint': (0.48, 0.38, 0.0),
+            'back_right_wheel_joint': (0.48, -0.38, 0.0)
+        }
+        
+        # Базовые ориентации из URDF (поворот на 90°)
+        wheel_base_orientations = {
+            'left_wheel_joint': quaternion_from_euler(-math.pi/2, 0, 0),
+            'right_wheel_joint': quaternion_from_euler(math.pi/2, 0, 0),
+            'back_left_wheel_joint': quaternion_from_euler(-math.pi/2, 0, 0),
+            'back_right_wheel_joint': quaternion_from_euler(math.pi/2, 0, 0)
+        }
+        
+        for wheel_name, pos in wheel_positions.items():
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = 'base_link'
+            t.child_frame_id = wheel_name.replace('_joint', '')  # left_wheel_joint → left_wheel
+            
+            t.transform.translation.x = pos[0]
+            t.transform.translation.y = pos[1]
+            t.transform.translation.z = pos[2]
+            
+            # Базовый кватернион из URDF
+            q_base = wheel_base_orientations[wheel_name]
+            
+            # Вращение колеса вокруг оси Z
+            angle = self.wheel_angles[wheel_name]
+            q_rot = quaternion_from_euler(0, 0, angle)
+            
+            # Комбинируем ориентации: базовая + вращение
+            q_total = quaternion_multiply(q_base, q_rot)
+            
+            t.transform.rotation.x = q_total[0]
+            t.transform.rotation.y = q_total[1]
+            t.transform.rotation.z = q_total[2]
+            t.transform.rotation.w = q_total[3]
+            
+            transforms.append(t)
+        
+        self.tf_broadcaster.sendTransform(transforms)
 
 def main():
     rclpy.init()
