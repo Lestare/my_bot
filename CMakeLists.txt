@@ -37,5 +37,11 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )   
 
+install(PROGRAMS
+  launch/aruco_detector.py
+  launch/camera_info_publisher.py
+  launch/aruco_localization.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_package()
