@@ -6,9 +6,9 @@
     <gazebo>
         <plugin name="skid_steer_drive" filename="libgazebo_ros_diff_drive.so">
             <commandTopic>cmd_vel</commandTopic>
-            <odometryTopic>odom</odometryTopic>
-            <odometryFrame>odom</odometryFrame>
-            <robotBaseFrame>base_link</robotBaseFrame>
+            <odometry_topic>odom2</odometry_topic>
+            <odometry_frame>odom</odometry_frame>
+            <robot_base_frame>base_link</robot_base_frame>
 
 
             <num_wheel_pairs>2</num_wheel_pairs>
@@ -21,9 +21,11 @@
             <wheel_diameter>0.34</wheel_diameter>
             <torque>1000</torque>
             <updateRate>50.0</updateRate>
-            <publishWheelTF>true</publishWheelTF>
+            <publishWheelTF>false</publishWheelTF>
             <publishWheelJointState>true</publishWheelJointState>
-            <publishTf>true</publishTf>
+            <publish_odom>true</publish_odom>
+            <publish_odom_tf>true</publish_odom_tf>
+            <publish_wheel_tf>false</publish_wheel_tf>
         </plugin>
     </gazebo>
 
