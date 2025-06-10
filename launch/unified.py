@@ -74,6 +74,5 @@ def generate_launch_description():
         gazebo,
         spawn_entity,
         rviz_node,
-        joint_gui,
         launch_teleop
     ])
