@@ -1,50 +1,78 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, ExecuteProcess, RegisterEventHandler, LogInfo
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
-from launch.substitutions import Command
+from launch.event_handlers import OnProcessIO
+from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     package_name = 'my_bot'
+    
+    # ===== RSP (Robot State Publisher) =====
+    rsp = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            os.path.join(
+                get_package_share_directory(package_name),
+                'launch',
+                'rsp.launch.py'
+            )
+        ]),
+        launch_arguments={
+            'use_sim_time': 'true',
+            'use_ros2_control': 'false'
+        }.items()
+    )
 
-    # Путь к нашему world-файлу
+    # Путь к world-файлу с проверкой
     world_path = os.path.join(
         get_package_share_directory(package_name),
         'worlds',
         'aruco_world.world'
     )
+    
+    if not os.path.exists(world_path):
+        return LaunchDescription([
+            LogInfo(msg=f"ERROR: World file not found: {world_path}")
+        ])
 
-    # Include robot_state_publisher
-    rsp = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory(package_name), 'launch', 'rsp.launch.py'
-        )]), 
-        launch_arguments={'use_sim_time': 'true'}.items()
-    )
+    # Установка переменных окружения для Gazebo
+    gazebo_env = os.environ.copy()
+    gazebo_env['GAZEBO_MODEL_PATH'] = os.path.join(
+        get_package_share_directory(package_name), 
+        'models'
+    ) + ':' + gazebo_env.get('GAZEBO_MODEL_PATH', '')
+    
+    gazebo_env['GAZEBO_RESOURCE_PATH'] = os.path.join(
+        get_package_share_directory(package_name),
+        'media'
+    ) + ':' + gazebo_env.get('GAZEBO_RESOURCE_PATH', '')
 
-    # Запуск Gazebo с нашим миром
+    # Запуск Gazebo (упрощенная команда)
     gazebo = ExecuteProcess(
-        cmd=['gazebo', '--verbose', world_path, '-s', 'libgazebo_ros_init.so', '-s', 'libgazebo_ros_factory.so'],
-        output='screen'
+        cmd=['gazebo', '--verbose', world_path],
+        output='screen',
+        env=gazebo_env
     )
-
+    
     # Спавн робота
     spawn_entity = Node(
         package='gazebo_ros',
         executable='spawn_entity.py',
-        arguments=['-topic', 'robot_description', '-entity', 'my_bot'],
+        arguments=['-topic', 'robot_description', '-entity', 'my_bot', '-z', '0.1'],
         output='screen'
     )
 
-    # Убедимся, что пути к медиа-ресурсам установлены правильно
-    media_path = os.path.join(
-        get_package_share_directory(package_name),
-        'launch', 'models', 'aruco_wall', 'materials'
+    # Более надежный обработчик для спавна
+    spawn_entity_handler = RegisterEventHandler(
+        event_handler=OnProcessIO(
+            target_action=gazebo,
+            on_stdout=lambda event: spawn_entity,
+        )
     )
-    
-    # Узел для публикации статических трансформаций камеры
+
+    # Статическая трансформация для камеры
     static_tf_camera = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
@@ -52,31 +80,32 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Узел для публикации статических трансформаций карты
-    static_tf_map = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
-        output='screen'
-    )
-
-    # Узел для публикации информации о камере (заглушка)
+    # Публикатор информации о камере
     camera_info_publisher = Node(
         package='my_bot',
         executable='camera_info_publisher.py',
         name='camera_info_publisher',
-        output='screen'
+        output='screen',
+        parameters=[{
+            'camera_name': 'camera',
+            'image_width': 640,
+            'image_height': 480,
+            'camera_frame_id': 'camera_link'
+        }]
     )
 
-    # Узел для визуализации маркеров в RViz
-    aruco_marker_publisher = Node(
+    # Детектор ArUco меток
+    aruco_detector = Node(
         package='my_bot',
         executable='aruco_detector.py',
         name='aruco_detector',
         output='screen',
         parameters=[
-            {'marker_size': 0.15},  # Размер метки в метрах
+            {'marker_size': 0.15},
             {'dictionary': 'DICT_4X4_50'},
+            {'camera_frame': 'camera_link'},
+            {'image_topic': '/camera/image_raw'},
+            {'camera_info_topic': '/camera/camera_info'}
         ]
     )
 
@@ -96,12 +125,12 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        LogInfo(msg="Starting ArUco simulation..."),
         rsp,
         gazebo,
-        spawn_entity,
+        spawn_entity_handler,
         static_tf_camera,
-        static_tf_map,
         camera_info_publisher,
-        aruco_marker_publisher,
+        aruco_detector,
         rviz_node
     ])

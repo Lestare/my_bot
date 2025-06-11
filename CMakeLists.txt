@@ -15,31 +15,53 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
+# Находим зависимости
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-# Установка Python скриптов (обратите внимание на правильные пути)
+# Установка Python скриптов
 install(PROGRAMS
-  launch/aruco_detector.py
-  launch/camera_info_publisher.py
-  launch/aruco_localization.py
+  scripts/aruco_detector.py
+  scripts/aruco_localization.py
+  scripts/camera_info_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# Установка ресурсов
-install(
-  DIRECTORY 
-    config 
-    description 
-    launch 
-    worlds 
-    media 
-    models
+# Установка ресурсов с сохранением структуры
+install(DIRECTORY 
+  config/
+  description/
+  media/
+  models/
+  worlds/
+  DESTINATION share/${PROJECT_NAME}/
+  PATTERN "*~" EXCLUDE
+)
+
+# Установка материалов отдельно
+install(DIRECTORY
+  media/materials/
+  DESTINATION share/${PROJECT_NAME}/media
+)
+
+# Установка launch-файлов
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+  PATTERN "*.py"  # Разрешаем установку .py файлов
+)
+
+# Установка остальных ресурсов
+install(DIRECTORY 
+  config 
+  description 
+  worlds 
+  media 
+  models
   DESTINATION share/${PROJECT_NAME}
 )
 
