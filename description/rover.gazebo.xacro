@@ -28,7 +28,7 @@
       <wheelDiameter>${wheel_radius*2}</wheelDiameter>
       <torque>1000</torque>
       <updateRate>50.0</updateRate>
-      <publishWheelTF>true</publishWheelTF>
+      <publishWheelTF>false</publishWheelTF>
       <publishWheelJointState>true</publishWheelJointState>
     </plugin>
   </gazebo>

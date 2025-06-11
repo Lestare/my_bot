@@ -69,10 +69,30 @@ def generate_launch_description():
         )
     )
 
+    hahahaha = Node(
+            package='robot_localization',
+            executable='ekf_node',
+            name='ekf_filter',
+            output='screen',
+            parameters=[{
+                'odom0': '/odom',               # Используем сырые данные одометрии
+                'imu0': '/imu/data',             # Если есть IMU (опционально)
+                'world_frame': 'odom',
+                'base_link_frame': 'base_link',
+                'use_sim_time': True,           # Критически важно для симуляции!
+                'odom0_config': [True, True, False,  # X, Y, Z позиция
+                                False, False, True,  # Roll, Pitch, Yaw
+                                True, True, False],  # Линейные скорости (X,Y)
+                'frequency': 50.0               # Частота обновления
+            }]
+        )
+
     return LaunchDescription([
         rsp,
         gazebo,
         spawn_entity,
         rviz_node,
-        launch_teleop
+        joint_gui,
+        launch_teleop,
+        hahahaha
     ])

@@ -7,7 +7,7 @@ from sensor_msgs.msg import JointState
 import math
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
-from tf_transformations import quaternion_from_euler, euler_from_quaternion
+from tf_transformations import quaternion_from_euler, euler_from_quaternion, quaternion_multiply
 
 class Rover(Node):
     def __init__(self):
@@ -46,7 +46,7 @@ class Rover(Node):
         # Таймер для публикации динамических трансформ
         self.create_timer(0.05, self.publish_dynamic_transforms)
         
-        self.get_logger().info("Ровер полностью синхронизирован! Точность обеспечена!")
+        self.get_logger().info("Ровер готов! Синхронизация восстановлена!")
 
     def odom_callback(self, msg):
         """Обработка реальной одометрии из Gazebo"""
@@ -72,12 +72,12 @@ class Rover(Node):
         """Публикация статических трансформ (один раз)"""
         transforms = []
         
-        # Шасси (chassis) - исправлено смещение
+        # Шасси (chassis)
         t_chassis = TransformStamped()
         t_chassis.header.stamp = self.get_clock().now().to_msg()
         t_chassis.header.frame_id = 'base_link'
         t_chassis.child_frame_id = 'chassis'
-        t_chassis.transform.translation.x = 0.0  # Было -0.1
+        t_chassis.transform.translation.x = 0.0
         t_chassis.transform.translation.y = 0.0
         t_chassis.transform.translation.z = 0.0
         t_chassis.transform.rotation.w = 1.0
@@ -107,7 +107,7 @@ class Rover(Node):
         t_base.transform.rotation.w = q[3]
         transforms.append(t_base)
         
-        # Трансформы колёс (base_link → wheel) - ИСПРАВЛЕНА ОРИЕНТАЦИЯ!
+        # Трансформы колёс с учетом URDF-ориентации
         wheel_positions = {
             'left_wheel_joint': (-0.38, 0.38, 0.0),
             'right_wheel_joint': (-0.38, -0.38, 0.0),
@@ -115,26 +115,38 @@ class Rover(Node):
             'back_right_wheel_joint': (0.48, -0.38, 0.0)
         }
         
-        # КОРРЕКТНАЯ ориентация колёс (без лишнего поворота)
-        for wheel_name in wheel_positions.keys():
+        # Базовые ориентации из URDF (поворот на 90°)
+        wheel_base_orientations = {
+            'left_wheel_joint': quaternion_from_euler(-math.pi/2, 0, 0),
+            'right_wheel_joint': quaternion_from_euler(math.pi/2, 0, 0),
+            'back_left_wheel_joint': quaternion_from_euler(-math.pi/2, 0, 0),
+            'back_right_wheel_joint': quaternion_from_euler(math.pi/2, 0, 0)
+        }
+        
+        for wheel_name, pos in wheel_positions.items():
             t = TransformStamped()
             t.header.stamp = now
             t.header.frame_id = 'base_link'
             t.child_frame_id = wheel_name.replace('_joint', '')  # left_wheel_joint → left_wheel
             
-            pos = wheel_positions[wheel_name]
             t.transform.translation.x = pos[0]
             t.transform.translation.y = pos[1]
             t.transform.translation.z = pos[2]
             
-            # ТОЛЬКО вращение вокруг оси Z (вертикальная ориентация)
+            # Базовый кватернион из URDF
+            q_base = wheel_base_orientations[wheel_name]
+            
+            # Вращение колеса вокруг оси Z
             angle = self.wheel_angles[wheel_name]
             q_rot = quaternion_from_euler(0, 0, angle)
             
-            t.transform.rotation.x = q_rot[0]
-            t.transform.rotation.y = q_rot[1]
-            t.transform.rotation.z = q_rot[2]
-            t.transform.rotation.w = q_rot[3]
+            # Комбинируем ориентации: базовая + вращение
+            q_total = quaternion_multiply(q_base, q_rot)
+            
+            t.transform.rotation.x = q_total[0]
+            t.transform.rotation.y = q_total[1]
+            t.transform.rotation.z = q_total[2]
+            t.transform.rotation.w = q_total[3]
             
             transforms.append(t)
         
